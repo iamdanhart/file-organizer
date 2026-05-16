@@ -46,7 +46,7 @@ if (config is null)
     logger.LogError("Failed to parse config file: {ConfigLocation}", configLocation);                                                                           
     return 1;                                                                                                                                                   
 }      
-var categories = BuildCategoryLookup(config);
+var categories = CategoryMapper.BuildLookup(config);
 
 if (args.FlagSet("--test-data"))
 {
@@ -142,12 +142,4 @@ void CreateTestData(string directoryPath)
         File.Create(Path.Combine(directoryPath, file)).Dispose();
 
     logger.LogInformation("Created {TestFilesLength} test files in {DirectoryPath}", testFiles.Length, directoryPath);
-}
-
-FrozenDictionary<string, string> BuildCategoryLookup(AppConfig config)
-{
-    return config.Categories
-        .SelectMany(kvp => kvp.Value, (kvp, ext) => (ext, category: kvp.Key))
-        .ToDictionary(pair => pair.ext, pair => pair.category)
-        .ToFrozenDictionary();
 }
