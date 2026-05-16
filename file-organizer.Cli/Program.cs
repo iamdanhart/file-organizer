@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,9 +8,9 @@ using file_organizer;
 using Microsoft.Extensions.Logging;
 
 var logLevel = args.FlagSet("--verbose") ? LogLevel.Debug : LogLevel.Information;
-bool jsonLogs = args.FlagSet("--json-logs"); 
+bool jsonLogs = args.FlagSet("--json-logs");
 
-var factory = LoggerFactory.Create(builder =>                                                                                                                   
+using var factory = LoggerFactory.Create(builder =>                                                                                                                   
 {                                                                                                                                                               
     if (jsonLogs)                                                                                                                                               
         builder.AddJsonConsole();                                                                                                                               
@@ -22,12 +23,30 @@ ILogger logger = factory.CreateLogger<Program>();
 
 if (args.Length < 1)
 {
-    logger.LogError("Usage: file-organizer <directory> [--dry-run] [--copy] [--execute] [--test-data]");
-    logger.LogError(
-        "       --test-data: populates the directory with sample files. Do not use on directories with real files.");
+    logger.LogError("Usage: file-organizer <directory> [--dry-run] [--copy] [--execute] [--test-data] [--config <path>]");
+    logger.LogError("       --test-data: populates the directory with sample files. Do not use on directories with real files.");
+    logger.LogError("       --config <path>: path to a JSON config file. Defaults to config.json next to the executable.");
     return 1; // prefer return over Environment.Exit() — runs cleanup (file handles, using blocks, etc.)
 }
+
 var directory = args[0];
+
+var configLocation = args.GetParamValue("--config");
+if (string.IsNullOrEmpty(configLocation))
+    configLocation = Path.Combine(AppContext.BaseDirectory, "config.json");
+
+if (!File.Exists(configLocation))
+{
+    logger.LogError("Config file not found: {ConfigLocation}", configLocation);
+    return 1;
+}
+var config = System.Text.Json.JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(configLocation));
+if (config is null)                                                                                                                                             
+{                                           
+    logger.LogError("Failed to parse config file: {ConfigLocation}", configLocation);                                                                           
+    return 1;                                                                                                                                                   
+}      
+var categories = BuildCategoryLookup(config);
 
 if (args.FlagSet("--test-data"))
 {
@@ -55,13 +74,7 @@ logger.LogInformation("Scanning: {Directory}", directory);
 List<(string fileName, string category)> sortedPaths;
 try
 {
-    sortedPaths = CategorizeFiles(directory);
-    // var argParamKey = "--test";
-    // var testValue = args.GetParamValue(argParamKey);
-    // if (!string.IsNullOrEmpty(testValue))
-    // {
-    //     Console.WriteLine($"{argParamKey}: {testValue}");
-    // }
+    sortedPaths = CategorizeFiles(directory, categories);
 }
 catch (UnauthorizedAccessException)
 {
@@ -88,7 +101,9 @@ operation.Run(sortedPaths);
 return 0;
 
 
-List<(string filePath, string category)> CategorizeFiles(string directoryPath)
+List<(string filePath, string category)> CategorizeFiles(
+    string directoryPath,
+    IReadOnlyDictionary<string, string> categoriesMap)
 {
     if (!Directory.Exists(directoryPath))
     {
@@ -104,7 +119,7 @@ List<(string filePath, string category)> CategorizeFiles(string directoryPath)
     foreach (var filepath in filepaths)
     {
         var ext = Path.GetExtension(filepath);
-        var category = Categories.ExtToCategory.GetValueOrDefault(ext, "UNKNOWN");
+        var category = categoriesMap.GetValueOrDefault(ext, "UNKNOWN");
 
         var filename = Path.GetFileName(filepath);
 
@@ -129,50 +144,10 @@ void CreateTestData(string directoryPath)
     logger.LogInformation("Created {TestFilesLength} test files in {DirectoryPath}", testFiles.Length, directoryPath);
 }
 
-static class CollectionExtensions
+FrozenDictionary<string, string> BuildCategoryLookup(AppConfig config)
 {
-    /// <summary>Returns true if the flag (e.g. "--dry-run") is present in the args array.</summary>
-    public static bool FlagSet(this string[] args, string flag)
-    {
-        return args.Contains(flag);
-    }
-
-    /// <summary>Returns the index of val in the array, or -1 if not found. Wraps the static Array.IndexOf.</summary>
-    public static int Index(this string[] args, string val)
-    {
-        return Array.IndexOf(args, val);
-    }
-
-    /// <summary>
-    /// Returns the value following a named parameter (e.g. "--output value").
-    /// Returns empty string if the flag is absent, duplicated, at the end of args, or followed by another flag.
-    /// </summary>
-    public static string GetParamValue(this string[] args, string parameter)
-    {
-        var count = args.Count(a => a == parameter);
-        if (count == 0)
-        {
-            return "";
-        }
-
-        if (count > 1)
-        {
-            return "";
-        }
-
-        var paramKeyIndex = args.Index(parameter);
-        if (paramKeyIndex >= args.Length - 1)
-        {
-            return "";
-        }
-
-        // works as long as valid value doesn't start with --
-        // otherwise need --param=value pattern
-        if (args[paramKeyIndex + 1].StartsWith("--"))
-        {
-            return "";
-        }
-
-        return args[paramKeyIndex + 1];
-    }
+    return config.Categories
+        .SelectMany(kvp => kvp.Value, (kvp, ext) => (ext, category: kvp.Key))
+        .ToDictionary(pair => pair.ext, pair => pair.category)
+        .ToFrozenDictionary();
 }

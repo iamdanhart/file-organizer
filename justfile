@@ -20,12 +20,9 @@ build:
 
 dry-run-test: test-data
     just run {{dir}} --dry-run
-
 copy-test: test-data
     just run {{dir}} --copy
-
 execute-test: test-data
     just run {{dir}} --execute
-
 test-data: _setup
-    just run {{dir}} --test-data
+    just run {{dir}} --test-data --config

@@ -16,4 +16,8 @@
     <ProjectReference Include="..\file-organizer.Core\file-organizer.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\config.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
