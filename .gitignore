@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+
+# Rider
+.idea/
+*.DotSettings.user
+
+# Visual Studio
+.vs/
+*.user
+
+# macOS
+.DS_Store
