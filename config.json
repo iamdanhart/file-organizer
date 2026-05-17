@@ -2,6 +2,6 @@
   "categories": {
     "Documents": [".pdf", ".docx", ".txt"],
     "Audio": [".mp3", ".flac", ".wav"],
-    "Images":[".jog", ".png"]
+    "Images": [".jpg", ".png"]
   }
 }

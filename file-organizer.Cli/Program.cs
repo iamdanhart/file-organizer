@@ -74,7 +74,9 @@ logger.LogInformation("Scanning: {Directory}", directory);
 List<(string fileName, string category)> sortedPaths;
 try
 {
-    sortedPaths = CategorizeFiles(directory, categories);
+    sortedPaths =
+        new FileCategorizer(factory.CreateLogger<FileCategorizer>())
+            .CategorizeFiles(directory, categories);
 }
 catch (UnauthorizedAccessException)
 {
@@ -101,33 +103,6 @@ operation.Run(sortedPaths);
 return 0;
 
 
-List<(string filePath, string category)> CategorizeFiles(
-    string directoryPath,
-    IReadOnlyDictionary<string, string> categoriesMap)
-{
-    if (!Directory.Exists(directoryPath))
-    {
-        logger.LogWarning("Directory not found: {DirectoryPath}", directoryPath);
-        return [];
-    }
-
-    List<(string, string)> categorizedFiles = new();
-
-    string[] filepaths = Directory.GetFiles(directoryPath);
-    Array.Sort(filepaths);
-
-    foreach (var filepath in filepaths)
-    {
-        var ext = Path.GetExtension(filepath);
-        var category = categoriesMap.GetValueOrDefault(ext, "UNKNOWN");
-
-        var filename = Path.GetFileName(filepath);
-
-        categorizedFiles.Add((filename, category));
-    }
-
-    return categorizedFiles;
-}
 
 void CreateTestData(string directoryPath)
 {
